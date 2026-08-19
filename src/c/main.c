@@ -46,10 +46,11 @@ GColor get_new_random_color(GColor oldColor){
 
 static void light_show_callback(void *data) {
   
+    
   #if defined(PBL_PLATFORM_FLINT)
   bl_toggle = !bl_toggle;
   
-  GCompOp mode = bl_toggle ? GCompOpAssignInverted : GCompOpAssign; 
+  //GCompOp mode = bl_toggle ? GCompOpAssignInverted : GCompOpAssign; 
   if (bl_enabled) {
     light_enable_interaction();
   }
