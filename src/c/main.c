@@ -1,11 +1,20 @@
+/*  
+ * Author: Viktor Nybom
+ * Contact: PebbleApp@theinter.link
+ * Description: Pebble app for turning the watch in to a praty light.
+*/ 
+
 #include <pebble.h>
 
 static Window *s_main_window;
 static TextLayer *s_text_layer;
+static TextLayer *top_text_layer;
+static TextLayer *bot_text_layer;
 
 // State
 static AppTimer *s_light_show_timer;
 static bool bl_enabled;
+static uint8_t hide_text_after_nbr_blinks;
 
 #if defined(PBL_PLATFORM_FLINT)
 static bool bl_toggle;
@@ -56,8 +65,14 @@ static void light_show_callback(void *data) {
   }
   #endif
   
-  if(blink_interval) {
+  if (blink_interval) {
     s_light_show_timer = app_timer_register(blink_interval, light_show_callback, NULL);
+    if (!hide_text_after_nbr_blinks){
+      layer_set_hidden(text_layer_get_layer(top_text_layer),true);
+      layer_set_hidden(text_layer_get_layer(bot_text_layer),true);
+    }else {
+      hide_text_after_nbr_blinks--;
+    }
   }
 }
 void make_interval_text(uint16_t val) {
@@ -90,24 +105,23 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
   delta_time=delta_time*1000+delta_millis;
   APP_LOG(APP_LOG_LEVEL_INFO, "4 beat tempo ms: %d", delta_time);
   if (delta_time > 0 && delta_time < 5000) {
-    blink_interval = (uint16_t)delta_time>>2;  
+    blink_interval = (uint16_t)delta_time>>2;
+    if (s_light_show_timer) {
+      app_timer_cancel(s_light_show_timer);
+      s_light_show_timer = NULL;
+    }
+    if (blink_interval > 0) {
+      s_light_show_timer = app_timer_register(blink_interval, light_show_callback, NULL);
+      make_BPM_text(blink_interval);
+      text_layer_set_text(s_text_layer, text_BPM);
+    }
+  }else {
+    text_layer_set_text(s_text_layer, "click after 4 beats  -->");
+    layer_set_hidden(text_layer_get_layer(s_text_layer),false);
+    hide_text_after_nbr_blinks=1;
   }
   last_timestamp=time_now;
   last_millis=millis_now;
-  
-  if (s_light_show_timer) {
-      app_timer_cancel(s_light_show_timer);
-      s_light_show_timer = NULL;
-  }
-  if (blink_interval > 0) {
-    s_light_show_timer = app_timer_register(blink_interval, light_show_callback, NULL);
-    //text_layer_set_text(s_text_layer, "Taped 4 beat tempo:");
-    //make_interval_text(blink_interval);
-    //text_layer_set_text(s_text_layer, text_interval);
-    make_BPM_text(blink_interval);
-    text_layer_set_text(s_text_layer, text_BPM);
-  }
-
 }
 
 static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -120,6 +134,9 @@ static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
   }
   make_BPM_text(blink_interval);
   text_layer_set_text(s_text_layer, text_BPM);
+  layer_set_hidden(text_layer_get_layer(top_text_layer),false);
+  hide_text_after_nbr_blinks=2;
+  
   APP_LOG(APP_LOG_LEVEL_DEBUG, "interval ms: %d", blink_interval);  
 }
 
@@ -133,6 +150,8 @@ static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
   }
   make_BPM_text(blink_interval);
   text_layer_set_text(s_text_layer, text_BPM);
+  layer_set_hidden(text_layer_get_layer(bot_text_layer),false);
+  hide_text_after_nbr_blinks=2;
   APP_LOG(APP_LOG_LEVEL_DEBUG, "interval ms: %d", blink_interval);
   
 }
@@ -148,10 +167,19 @@ static void main_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
 
-  s_text_layer = text_layer_create(GRect(0, 72, bounds.size.w, 20));
-  text_layer_set_text(s_text_layer, "click 4 beat tempo!");
+  s_text_layer = text_layer_create(GRect(0, 100, bounds.size.w, 20));
+  top_text_layer = text_layer_create(GRect(0, 10, bounds.size.w, 20));
+  bot_text_layer = text_layer_create(GRect(0, 190, bounds.size.w, 20));
+  text_layer_set_text(s_text_layer, "click 4 beat tempo  -->");
+  text_layer_set_text(top_text_layer, "Hold to Increase BPM  -->");
+  text_layer_set_text(bot_text_layer, "Hold to Decrease BPM  -->");
   text_layer_set_text_alignment(s_text_layer, GTextAlignmentCenter);
+  text_layer_set_text_alignment(top_text_layer, GTextAlignmentCenter);
+  text_layer_set_text_alignment(bot_text_layer, GTextAlignmentCenter);
   layer_add_child(window_layer, text_layer_get_layer(s_text_layer));
+  layer_add_child(window_layer, text_layer_get_layer(top_text_layer));
+  layer_add_child(window_layer, text_layer_get_layer(bot_text_layer));
+  hide_text_after_nbr_blinks=1;
 }
 
 static void main_window_unload(Window *window) {
